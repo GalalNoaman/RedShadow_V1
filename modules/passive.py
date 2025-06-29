@@ -1,4 +1,9 @@
-# RedShadow/modules/passive.py
+# Developed by Galal Noaman – RedShadow_V1
+# For educational and lawful use only.
+# Do not copy, redistribute, or resell without written permission.
+
+
+# RedShadow_v1/modules/passive.py
 
 import httpx
 import os
