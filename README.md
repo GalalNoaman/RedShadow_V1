@@ -64,4 +64,19 @@ RedShadow_V1/
 •	Works best with public-facing targets during bug bounty testing
 
 📌 License
-MIT License – Use at your own risk. No liability accepted for misuse or illegal use.
+This project is released for educational and non-commercial use only.
+
+You are not permitted to:
+
+Use or modify the tool for commercial gain
+
+Rebrand or redistribute it under another name
+
+Resell any part of the code or project
+
+Remove author attribution
+
+All rights reserved © 2025 Galal Noaman.
+For commercial or research use, contact: Jalalnoaman@gmail.com
+
+The author accepts no liability for misuse.

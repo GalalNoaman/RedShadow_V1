@@ -1,0 +1,19 @@
+Copyright © 2025 Galal Noaman. All rights reserved.
+
+This software is provided solely for educational and non-commercial use. You are granted permission to view and study the source code for personal development and research purposes only.
+
+You are NOT permitted to:
+- Use this code, or any part of it, for commercial or financial gain;
+- Repackage, rebrand, or modify the code for redistribution;
+- Sell or license the code, or any derivative work, to third parties;
+- Remove or alter author attribution or project references.
+
+You MAY:
+- Study the code for personal or academic learning;
+- Use it for lawful testing in private or controlled environments;
+- Request permission for commercial or research collaboration.
+
+This software is provided “as is”, without any warranty or guarantee of fitness for purpose. The author accepts no responsibility for misuse or damage arising from its use.
+
+To enquire about licensing or authorised usage:
+📧 Contact: Jalalnoaman@gmail.com
