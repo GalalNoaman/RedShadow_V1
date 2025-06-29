@@ -37,26 +37,27 @@ python3 main.py report --input outputs/analysis_results.json --output outputs/re
 📁 Project Structure
 
 RedShadow_V1/
+├── .gitignore
+├── LICENSE.txt
+├── README.md
+├── SECURITY.md
 ├── main.py
+├── requirements.txt
+├── setup.sh
 ├── modules/
+│   ├── __init__.py
+│   ├── analyse.py
 │   ├── domain.py
 │   ├── passive.py
-│   ├── scan.py
-│   ├── analyse.py
 │   ├── report.py
-├── exploits/
-│   ├── cve_2017_0144.py
-│   ├── ...
-├── payloads/
-│   ├── linux_reverse_shell.py
+│   ├── scan.py
+│  
 ├── outputs/
 │   ├── subdomains.txt
 │   ├── scan_results.json
 │   ├── passive_results.json
 │   ├── analysis_results.json
-│   ├── redshadow_report.md
-├── requirements.txt
-├── setup.sh
+│   └── redshadow_report.md
 
 🧠 Notes
 •	All scanning is non-invasive (no exploit traffic)
