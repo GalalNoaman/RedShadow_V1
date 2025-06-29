@@ -1,0 +1,6 @@
+httpx
+tqdm
+termcolor
+requests
+python-nmap
+dnspython
