@@ -6,19 +6,17 @@
 
 import json
 import os
+import re
 from termcolor import cprint
 
-# Fingerprint to CVE map (expand as needed)
-CVE_MAP = {
-    'Apache': ['CVE-2021-41773', 'CVE-2021-42013'],
-    'nginx': ['CVE-2019-20372'],
-    'PHP': ['CVE-2019-11043'],
-    'Express': ['CVE-2020-7699'],
-    'WordPress': ['CVE-2022-21664'],
-    'IIS': ['CVE-2017-7269'],
-    'tcpwrapped': ['CVE-2022-1990'],
-    'Varnish': ['CVE-2022-38150'],
-}
+# Load external CVE map from JSON file
+def load_cve_map(path="data/cve_map.json"):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[!] Failed to load CVE map: {e}")
+        return {}
 
 def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"):
     if not os.path.exists(input_file):
@@ -32,36 +30,32 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
         print(f"[!] Failed to read or parse input file: {error}")
         return
 
+    cve_map = load_cve_map()
     analysed = []
 
     for domain, info in data.items():
-        matches = []
+        matched_tech = []
 
         for proto, ports in info.get("protocols", {}).items():
             for port, port_data in ports.items():
                 service = port_data.get("service", "")
                 product = port_data.get("product", "")
-                version = port_data.get("version", "")
+                name_to_check = f"{product} {service}".strip().lower()
 
-                name_to_check = f"{product} {version}".strip()
-
-                for fingerprint, cves in CVE_MAP.items():
-                    if fingerprint.lower() in name_to_check.lower() or fingerprint.lower() in product.lower():
-                        matches.append({
-                            "tech": fingerprint,
-                            "port": port,
-                            "service": service,
-                            "product": product,
-                            "version": version,
-                            "cves": cves
+                for fingerprint, cve_entries in cve_map.items():
+                    if fingerprint.lower() in name_to_check:
+                        matched_tech.append({
+                            'tech': fingerprint,
+                            'port': port,
+                            'cves': cve_entries
                         })
 
-        if matches:
+        if matched_tech:
             analysed.append({
-                "url": domain,
-                "ip": info.get("ip", "N/A"),
-                "hostname": info.get("hostname", "N/A"),
-                "tech_matches": matches
+                'url': domain,
+                'ip': info.get("ip", "N/A"),
+                'hostname': info.get("hostname", "N/A"),
+                'tech_matches': matched_tech
             })
 
     if not analysed:
@@ -71,12 +65,13 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
         for item in analysed:
             cprint(f"[→] {item['url']} ({item['ip']})", "cyan")
             for tech in item['tech_matches']:
-                cprint(
-                    f"    - {tech['tech']} on port {tech['port']} "
-                    f"({tech['service']} {tech['product']} {tech['version']}) → "
-                    f"CVEs: {', '.join(tech['cves'])}",
-                    "yellow"
-                )
+                for cve_entry in tech['cves']:
+                    cve = cve_entry.get("cve", "N/A")
+                    cvss = cve_entry.get("cvss", "?")
+                    url = cve_entry.get("url", "")
+                    cprint(f"    - {tech['tech']} on port {tech['port']} → CVE: {cve} (CVSS: {cvss})", "yellow")
+                    if url:
+                        print(f"      {url}")
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     try:
