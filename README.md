@@ -25,61 +25,63 @@ sudo apt install nmap python3-venv -y
 
 ```
 
-## Create and activate a virtual environment:
+## 🔧 Setup
+# Option 1 – Manual
 
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-## Or use the setup script:
+# Option 2 – Auto setup
 
 chmod +x setup.sh
 ./setup.sh
 
 ## 🚀 Usage
-1- Subdomain Enumeration:
+# 1. Subdomain enumeration
 python3 main.py domain --target tesla.com --output outputs/subdomains.txt
 
-2- Passive Recon:
+# 2. Passive reconnaissance
 python3 main.py passive --input outputs/subdomains.txt --output outputs/passive_results.json
 
-3- Port Scan:
+# 3. Port scan
 python3 main.py scan --input outputs/subdomains.txt --output outputs/scan_results.json
 
-4- CVE Analysis:
+# 4. CVE analysis
 python3 main.py analyse --input outputs/scan_results.json --output outputs/analysis_results.json
 
-5- Markdown Report:
+# 5. Generate Markdown report
 python3 main.py report --input outputs/analysis_results.json --output outputs/redshadow_report.md
+
 
 ## 📁 Project Structure
 RedShadow_V1/
-├── .git/                        
-├── .gitignore                  
-├── LICENSE.txt                 
-├── README.md                   
-├── SECURITY.md                 
-├── config.yaml                
-├── main.py                     
-├── requirements.txt            
-├── setup.sh                    
+├── .git/
+├── .gitignore
+├── LICENSE.txt
+├── README.md
+├── SECURITY.md
+├── config.yaml
+├── main.py
+├── requirements.txt
+├── setup.sh
 ├── data/
-│   └── cve_map.json            
+│   └── cve_map.json
 ├── modules/
-│   ├── __init__.py             
-│   ├── analyse.py              
-│   ├── domain.py               
-│   ├── passive.py              
-│   ├── report.py               
-│   ├── scan.py                 
-│   └── utils.py                
+│   ├── __init__.py
+│   ├── analyse.py
+│   ├── domain.py
+│   ├── passive.py
+│   ├── report.py
+│   ├── scan.py
+│   └── utils.py
 ├── outputs/
-│   ├── subdomains.txt          
-│   ├── passive_results.json    
-│   ├── scan_results.json       
-│   ├── analysis_results.json   
-│   └── redshadow_report.md     
-├── venv/                       
+│   ├── subdomains.txt
+│   ├── passive_results.json
+│   ├── scan_results.json
+│   ├── analysis_results.json
+│   └── redshadow_report.md
+├── venv/
 
 
 
