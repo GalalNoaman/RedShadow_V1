@@ -2,7 +2,6 @@
 # For educational and lawful use only.
 # Do not copy, redistribute, or resell without written permission.
 
-
 # RedShadow_v1/modules/analyse.py
 
 import json
@@ -17,7 +16,8 @@ CVE_MAP = {
     'Express': ['CVE-2020-7699'],
     'WordPress': ['CVE-2022-21664'],
     'IIS': ['CVE-2017-7269'],
-    'tcpwrapped': ['CVE-2022-1990'],  # example
+    'tcpwrapped': ['CVE-2022-1990'],
+    'Varnish': ['CVE-2022-38150'],
 }
 
 def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"):
@@ -33,30 +33,35 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
         return
 
     analysed = []
-    for domain, info in data.items():
-        matched_tech = []
 
-        # Loop through each protocol and port
+    for domain, info in data.items():
+        matches = []
+
         for proto, ports in info.get("protocols", {}).items():
             for port, port_data in ports.items():
                 service = port_data.get("service", "")
                 product = port_data.get("product", "")
-                name_to_check = f"{product} {service}".strip()
+                version = port_data.get("version", "")
+
+                name_to_check = f"{product} {version}".strip()
 
                 for fingerprint, cves in CVE_MAP.items():
-                    if fingerprint.lower() in name_to_check.lower():
-                        matched_tech.append({
-                            'tech': fingerprint,
-                            'port': port,
-                            'cves': cves
+                    if fingerprint.lower() in name_to_check.lower() or fingerprint.lower() in product.lower():
+                        matches.append({
+                            "tech": fingerprint,
+                            "port": port,
+                            "service": service,
+                            "product": product,
+                            "version": version,
+                            "cves": cves
                         })
 
-        if matched_tech:
+        if matches:
             analysed.append({
-                'url': domain,
-                'ip': info.get("ip", "N/A"),
-                'hostname': info.get("hostname", "N/A"),
-                'tech_matches': matched_tech
+                "url": domain,
+                "ip": info.get("ip", "N/A"),
+                "hostname": info.get("hostname", "N/A"),
+                "tech_matches": matches
             })
 
     if not analysed:
@@ -66,7 +71,12 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
         for item in analysed:
             cprint(f"[→] {item['url']} ({item['ip']})", "cyan")
             for tech in item['tech_matches']:
-                cprint(f"    - {tech['tech']} on port {tech['port']} → CVEs: {', '.join(tech['cves'])}", "yellow")
+                cprint(
+                    f"    - {tech['tech']} on port {tech['port']} "
+                    f"({tech['service']} {tech['product']} {tech['version']}) → "
+                    f"CVEs: {', '.join(tech['cves'])}",
+                    "yellow"
+                )
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     try:
