@@ -1,13 +1,26 @@
-# Ignore virtual environment
+# Ignore Python virtual environments
 venv/
+.env/
 
-# Ignore output files
+# Ignore output and temp files
 outputs/
+*.log
+*.tmp
 
-# Ignore bytecode
+# Ignore Python bytecode
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# Ignore system files
+# Ignore editor/OS metadata
 .DS_Store
 *.swp
+*.swo
+*.bak
+
+# Ignore Jupyter checkpoints if any
+.ipynb_checkpoints/
+
+# Ignore system-wide config
+config.yaml
+*.db

@@ -1,83 +1,105 @@
-RedShadow V1 – Reconnaissance and Analysis Tool
+# 🕵️‍♂️ RedShadow V1 – Reconnaissance and CVE Analysis Tool
 
-**RedShadow V1** is a red team automation tool for passive reconnaissance, port scanning, and CVE analysis. It’s built for bug bounty hunters and internal security testers who need to quickly fingerprint domains, detect technologies, and identify known vulnerabilities.
-⚠️ This version performs scanning and analysis only. No payloads, shells, or real exploitation are included in V1.
+**RedShadow V1** is a red team automation tool for passive reconnaissance, port scanning, and CVE analysis. Built for bug bounty hunters and internal testers, it fingerprints domains, detects technologies, and maps them to known vulnerabilities.
 
-📦 Features
-•	✅ Subdomain enumeration from `crt.sh`
-•	✅ Passive recon (HTTP headers, titles, and tech stack)
-•	✅ Port scanning via Nmap
-•	✅ CVE detection from service + version matching
-•	✅ Markdown report generation
+> ⚠️ V1 focuses on scanning and analysis only. No exploitation or payloads are included.
 
-🛠️ Requirements
+---
+
+## 📦 Features
+
+- ✅ Subdomain enumeration via `crt.sh`
+- ✅ Passive HTTP recon (headers, title, tech stack)
+- ✅ Nmap-based port scanning
+- ✅ CVE detection via service/version matching
+- ✅ Markdown report generation
+
+---
+
+## 🛠️ Requirements
+
 Install system dependencies:
+```bash
 sudo apt update
 sudo apt install nmap python3-venv -y
-Create and activate a virtual environment:
+
+```
+
+## Create and activate a virtual environment:
+
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-Or use the setup script:
+
+## Or use the setup script:
+
 chmod +x setup.sh
 ./setup.sh
 
-🚀 Usage
-1.	1. Subdomain Enumeration
+## 🚀 Usage
+1- Subdomain Enumeration:
 python3 main.py domain --target tesla.com --output outputs/subdomains.txt
-2.	2. Passive Recon
+
+2- Passive Recon:
 python3 main.py passive --input outputs/subdomains.txt --output outputs/passive_results.json
-3.	3. Port Scan (Nmap)
+
+3- Port Scan:
 python3 main.py scan --input outputs/subdomains.txt --output outputs/scan_results.json
-4.	4. CVE Analysis
+
+4- CVE Analysis:
 python3 main.py analyse --input outputs/scan_results.json --output outputs/analysis_results.json
-5.	5. Markdown Report
+
+5- Markdown Report:
 python3 main.py report --input outputs/analysis_results.json --output outputs/redshadow_report.md
 
-📁 Project Structure
-
+## 📁 Project Structure
 RedShadow_V1/
-├── .gitignore
-├── LICENSE.txt
-├── README.md
-├── SECURITY.md
-├── main.py
-├── requirements.txt
-├── setup.sh
+├── .git/                        
+├── .gitignore                  
+├── LICENSE.txt                 
+├── README.md                   
+├── SECURITY.md                 
+├── config.yaml                
+├── main.py                     
+├── requirements.txt            
+├── setup.sh                    
+├── data/
+│   └── cve_map.json            
 ├── modules/
-│   ├── __init__.py
-│   ├── analyse.py
-│   ├── domain.py
-│   ├── passive.py
-│   ├── report.py
-│   ├── scan.py
-│  
+│   ├── __init__.py             
+│   ├── analyse.py              
+│   ├── domain.py               
+│   ├── passive.py              
+│   ├── report.py               
+│   ├── scan.py                 
+│   └── utils.py                
 ├── outputs/
-│   ├── subdomains.txt
-│   ├── scan_results.json
-│   ├── passive_results.json
-│   ├── analysis_results.json
-│   └── redshadow_report.md
+│   ├── subdomains.txt          
+│   ├── passive_results.json    
+│   ├── scan_results.json       
+│   ├── analysis_results.json   
+│   └── redshadow_report.md     
+├── venv/                       
 
-🧠 Notes
-•	All scanning is non-invasive (no exploit traffic)
-•	Uses DNS over Google/Cloudflare for domain resolution
-•	Works best with public-facing targets during bug bounty testing
 
-📌 License
-This project is released for educational and non-commercial use only.
 
-You are not permitted to:
+## 🧠 Notes
+Passive-only: no exploitation or shell generation
 
-Use or modify the tool for commercial gain
+Uses DNS resolution via Google/Cloudflare
 
-Rebrand or redistribute it under another name
+Designed for public bug bounty targets
 
-Resell any part of the code or project
+## 📌 License
+This project is for educational and non-commercial use only.
 
-Remove author attribution
+You are not allowed to:
 
-All rights reserved © 2025 Galal Noaman.
-For commercial or research use, contact: Jalalnoaman@gmail.com
+Use or modify the code for commercial gain
 
-The author accepts no liability for misuse.
+Rebrand, resell, or redistribute any part of this project
+
+Remove author credit
+
+All rights reserved © 2025 Galal Noaman
+Contact: Jalalnoaman@gmail.com for research or licensing requests.

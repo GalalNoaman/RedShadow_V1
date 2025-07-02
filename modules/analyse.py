@@ -8,13 +8,17 @@ import json
 import os
 import re
 from termcolor import cprint
+from modules.utils import load_config
 
-# Load external CVE map from JSON file
-def load_cve_map(path="data/cve_map.json"):
+# Load config
+config = load_config()
+cve_path = config.get("analyse", {}).get("cve_source", "data/cve_map.json")
+
+def load_cve_map(path=cve_path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception as e:
+    except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"[!] Failed to load CVE map: {e}")
         return {}
 
@@ -26,50 +30,53 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+    except json.JSONDecodeError as error:
+        print(f"[!] Failed to parse input JSON: {error}")
+        return
     except Exception as error:
-        print(f"[!] Failed to read or parse input file: {error}")
+        print(f"[!] Error reading input file: {error}")
         return
 
     cve_map = load_cve_map()
     analysed = []
 
     for domain, info in data.items():
-        matched_tech = []
+        tech_matches = []
 
         for proto, ports in info.get("protocols", {}).items():
             for port, port_data in ports.items():
                 service = port_data.get("service", "")
                 product = port_data.get("product", "")
-                name_to_check = f"{product} {service}".strip().lower()
+                name = f"{product} {service}".strip().lower()
 
-                for fingerprint, cve_entries in cve_map.items():
-                    if fingerprint.lower() in name_to_check:
-                        matched_tech.append({
-                            'tech': fingerprint,
+                for tech_fp, cves in cve_map.items():
+                    if tech_fp.lower() in name:
+                        tech_matches.append({
+                            'tech': tech_fp,
                             'port': port,
-                            'cves': cve_entries
+                            'cves': cves
                         })
 
-        if matched_tech:
+        if tech_matches:
             analysed.append({
                 'url': domain,
                 'ip': info.get("ip", "N/A"),
                 'hostname': info.get("hostname", "N/A"),
-                'tech_matches': matched_tech
+                'tech_matches': tech_matches
             })
 
     if not analysed:
         print("[!] No vulnerable technologies detected.")
     else:
         print(f"\n[✓] Found {len(analysed)} potentially vulnerable targets:\n")
-        for item in analysed:
-            cprint(f"[→] {item['url']} ({item['ip']})", "cyan")
-            for tech in item['tech_matches']:
-                for cve_entry in tech['cves']:
-                    cve = cve_entry.get("cve", "N/A")
-                    cvss = cve_entry.get("cvss", "?")
-                    url = cve_entry.get("url", "")
-                    cprint(f"    - {tech['tech']} on port {tech['port']} → CVE: {cve} (CVSS: {cvss})", "yellow")
+        for entry in analysed:
+            cprint(f"[→] {entry['url']} ({entry['ip']})", "cyan")
+            for match in entry['tech_matches']:
+                for cve in match['cves']:
+                    cve_id = cve.get("cve", "N/A")
+                    cvss = cve.get("cvss", "?")
+                    url = cve.get("url", "")
+                    cprint(f"    - {match['tech']} on port {match['port']} → CVE: {cve_id} (CVSS: {cvss})", "yellow")
                     if url:
                         print(f"      {url}")
 

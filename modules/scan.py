@@ -2,7 +2,6 @@
 # For educational and lawful use only.
 # Do not copy, redistribute, or resell without written permission.
 
-
 # RedShadow_v1/modules/scan.py
 
 import nmap
@@ -11,11 +10,28 @@ import os
 import sys
 import socket
 import dns.resolver
+import re
 from multiprocessing.dummy import Pool as ThreadPool
+from modules.utils import load_config
 
-# Use Google + Cloudflare DNS
+# Custom exceptions
+class ScanError(Exception): pass
+class DNSResolutionError(Exception): pass
+
+# Load config
+try:
+    config = load_config()
+    scan_cfg = config.get("scan", {})
+    default_ports = scan_cfg.get("nmap_ports", "21,22,80,443,8080")
+    max_threads = int(scan_cfg.get("max_threads", 10))
+    dns_servers = scan_cfg.get("dns_servers", ["8.8.8.8", "1.1.1.1"])
+except Exception as err:
+    print(f"[!] Failed to load config: {err}")
+    sys.exit(1)
+
+# DNS setup
 resolver = dns.resolver.Resolver()
-resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+resolver.nameservers = dns_servers
 resolver.timeout = 3
 resolver.lifetime = 5
 
@@ -32,7 +48,7 @@ def scan_target(args):
     try:
         scanner.scan(
             hosts=ip,
-            arguments='-sS -sV -T4 -Pn -n -p 21,22,23,25,53,80,110,139,143,443,445,587,993,995,1723,3306,3389,5900,8080,8443'
+            arguments=f'-sS -sV -T4 -Pn -n -p {default_ports}'
         )
     except Exception as error:
         return {domain: {'ip': ip, 'error': f'Scan failed: {error}'}}
@@ -63,10 +79,13 @@ def scan_target(args):
 
     return {domain: {'ip': ip, 'note': 'No open ports found'}}
 
-def run_scan(input_file, output_file, threads=20):
+def is_valid_domain(domain):
+    return re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", domain)
+
+def run_scan(input_file, output_file):
     print(f"[+] Reading targets from {input_file}")
     try:
-        with open(input_file, 'r') as f:
+        with open(input_file, 'r', encoding='utf-8') as f:
             raw_targets = list(set(
                 line.strip().lower() for line in f
                 if line.strip() and not line.startswith("*.") and not line.startswith("#")
@@ -75,17 +94,26 @@ def run_scan(input_file, output_file, threads=20):
         print(f"[!] Failed to read input file: {error}")
         return
 
+    filtered_targets = [d for d in raw_targets if is_valid_domain(d)]
+    if not filtered_targets:
+        print("[!] No valid domains to scan.")
+        return
+
     print("[+] Resolving DNS...")
-    with ThreadPool(threads) as pool:
-        resolved = pool.map(resolve_domain, raw_targets)
+    with ThreadPool(max_threads) as pool:
+        resolved = pool.map(resolve_domain, filtered_targets)
 
     targets = [(d, ip) for d, ip in resolved if ip]
     for d, ip in resolved:
         if not ip:
             print(f"[!] Skipping {d} - DNS resolution failed")
 
-    print(f"[+] Starting Nmap scans on {len(targets)} targets")
-    with ThreadPool(threads) as pool:
+    if not targets:
+        print("[!] No live targets to scan.")
+        return
+
+    print(f"[+] Starting Nmap scans on {len(targets)} target(s)")
+    with ThreadPool(max_threads) as pool:
         results = pool.map(scan_target, targets)
 
     final_output = {}
@@ -95,7 +123,7 @@ def run_scan(input_file, output_file, threads=20):
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     try:
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(final_output, f, indent=2)
         print(f"[✓] Scan complete. Results saved to {output_file}")
     except Exception as error:
