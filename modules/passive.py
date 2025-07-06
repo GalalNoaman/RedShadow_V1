@@ -21,15 +21,49 @@ def extract_title(html):
         return html[start + 7:end].strip()
     return "N/A"
 
-def passive_recon(input_file, output_file, insecure=False):
+def detect_technologies(html, headers):
+    tech = []
+    html_lower = html.lower()
+
+    # HTML-based detection
+    if "wp-content" in html_lower or "wordpress" in html_lower:
+        tech.append("WordPress")
+    if "/_next/" in html_lower:
+        tech.append("Next.js")
+    if "drupal.settings" in html_lower:
+        tech.append("Drupal")
+    if "joomla" in html_lower or "com_content" in html_lower:
+        tech.append("Joomla")
+    if "<meta name=\"generator\" content=\"shopify" in html_lower:
+        tech.append("Shopify")
+    if "magento" in html_lower:
+        tech.append("Magento")
+
+    # Header-based detection
+    server = headers.get("server", "")
+    powered_by = headers.get("x-powered-by", "")
+    aspnet = headers.get("x-aspnet-version", "")
+    aws = headers.get("x-amz-bucket-region", "")
+
+    if server:
+        tech.append(server)
+    if powered_by:
+        tech.append(powered_by)
+    if aspnet:
+        tech.append("ASP.NET")
+    if aws:
+        tech.append("AWS S3")
+
+    return list(set(tech))
+
+def passive_recon(input_file, output_file, insecure=False, verbose=False):
     if not os.path.exists(input_file):
         print(f"[!] Subdomain list not found: {input_file}")
         return
 
-    config = load_config()
-    passive_cfg = config.get("passive", {})
-    delay = passive_cfg.get("delay", 1)
-    verify_ssl = not insecure and passive_cfg.get("verify_ssl", True)
+    config = load_config(section="passive")
+    delay = config.get("delay", 1)
+    verify_ssl = not insecure and config.get("verify_ssl", True)
 
     print("[+] Starting passive reconnaissance...")
     with open(input_file, 'r', encoding='utf-8') as f:
@@ -47,14 +81,10 @@ def passive_recon(input_file, output_file, insecure=False):
                     verify=verify_ssl
                 )
 
-                server = response.headers.get('server', '').strip()
-                powered_by = response.headers.get('x-powered-by', '').strip()
-                tech_matches = []
-
-                if server:
-                    tech_matches.append({'tech': server, 'cves': []})
-                if powered_by:
-                    tech_matches.append({'tech': powered_by, 'cves': []})
+                tech_matches = [
+                    {"tech": t, "cves": []}
+                    for t in detect_technologies(response.text, response.headers)
+                ]
 
                 results.append({
                     'url': url,
@@ -67,14 +97,17 @@ def passive_recon(input_file, output_file, insecure=False):
                 })
 
                 time.sleep(delay)
-                break  # Exit loop after first successful scheme (http/https)
+                break  # Skip https if http worked (or vice versa)
 
             except httpx.ConnectTimeout:
-                print(f"[!] Timeout for {url}")
+                if verbose:
+                    print(f"[!] Timeout: {url}")
             except httpx.RequestError as e:
-                print(f"[!] Connection error for {url}: {e}")
+                if verbose:
+                    print(f"[!] Connection error: {url} → {e}")
             except Exception as e:
-                print(f"[!] Error processing {url}: {e}")
+                if verbose:
+                    print(f"[!] Unexpected error: {url} → {e}")
 
     if not results:
         print("[!] No reachable subdomains found.")
@@ -84,6 +117,6 @@ def passive_recon(input_file, output_file, insecure=False):
     try:
         with open(output_file, 'w', encoding='utf-8') as out:
             json.dump(results, out, indent=2)
-        print(f"[✓] Passive reconnaissance complete. {len(results)} results saved to {output_file}")
+        print(f"[✓] Passive reconnaissance complete. {len(results)} reachable hosts saved to {output_file}")
     except Exception as error:
         raise PassiveReconError(f"[!] Could not write output file: {error}")

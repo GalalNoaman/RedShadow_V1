@@ -4,91 +4,85 @@
 
 # RedShadow_v1/modules/domain.py
 
-import requests
+import httpx
 import time
 import os
 import re
-import yaml
+import json
+from termcolor import cprint
+from modules.utils import load_config
 
 class SubdomainEnumerationError(Exception):
     pass
 
-def load_config():
-    default_config = {
-        "timeout": 20,
-        "retries": 2,
-        "delay": 0,
-        "headers": {
-            "User-Agent": "RedShadowBot/1.0"
-        }
-    }
-    config_path = "config.yaml"
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r') as file:
-                user_config = yaml.safe_load(file)
-                default_config.update(user_config.get("domain", {}))
-        except Exception as e:
-            print(f"[!] Failed to load config.yaml: {e}")
-    return default_config
-
 def validate_domain(domain):
     return re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", domain) is not None
 
-def enumerate_subdomains(domain, output_file):
-    config = load_config()
+def enumerate_subdomains(domain, output_file, output_format="txt"):
+    config = load_config(section="domain")
 
     if not validate_domain(domain):
         raise ValueError(f"[!] Invalid domain format: {domain}")
 
-    print(f"[+] Enumerating subdomains for: {domain}")
+    cprint(f"[+] Enumerating subdomains for: {domain}", "cyan")
     crtsh_url = f"https://crt.sh/?q=%25.{domain}&output=json"
     subdomains = set()
 
-    headers = config.get("headers", {})
+    headers = config.get("headers", {"User-Agent": "RedShadowBot/1.0"})
     timeout = config.get("timeout", 20)
     retries = config.get("retries", 2)
     delay = config.get("delay", 0)
 
-    # ────────── Try crt.sh ──────────
+    # ──── Try crt.sh ────
     for attempt in range(retries):
         try:
-            response = requests.get(crtsh_url, timeout=timeout, headers=headers)
+            response = httpx.get(crtsh_url, timeout=timeout, headers=headers)
             response.raise_for_status()
             data = response.json()
             for entry in data:
                 name_value = entry.get('name_value', '')
                 for sub in name_value.splitlines():
                     if domain in sub:
-                        subdomains.add(sub.strip())
+                        cleaned = sub.strip().lstrip("*.")  # Remove wildcards
+                        subdomains.add(cleaned.lower())
+            cprint(f"[✓] Found {len(subdomains)} from crt.sh", "green")
             break
-        except (requests.RequestException, ValueError) as error:
-            print(f"[!] crt.sh attempt {attempt + 1} failed: {error}")
+        except (httpx.RequestError, ValueError) as error:
+            cprint(f"[!] crt.sh attempt {attempt + 1} failed: {error}", "red")
             time.sleep(delay)
     else:
-        print("[!] crt.sh failed. Trying backup API...")
+        cprint("[!] crt.sh failed. Trying backup API...", "yellow")
 
-        # ────────── Fallback: dns.bufferover.run ──────────
+        # ──── Fallback: dns.bufferover.run ────
         try:
             alt_url = f"https://dns.bufferover.run/dns?q=.{domain}"
-            alt_response = requests.get(alt_url, timeout=10, headers=headers)
+            alt_response = httpx.get(alt_url, timeout=10, headers=headers)
             alt_response.raise_for_status()
             alt_data = alt_response.json()
             if 'FDNS_A' in alt_data:
                 for entry in alt_data['FDNS_A']:
                     parts = entry.split(',')
                     if len(parts) == 2 and domain in parts[1]:
-                        subdomains.add(parts[1].strip())
+                        cleaned = parts[1].strip().lstrip("*.").lower()
+                        subdomains.add(cleaned)
+            cprint(f"[✓] Found {len(subdomains)} from bufferover.run", "green")
         except Exception as backup_error:
-            print(f"[!] Backup API also failed: {backup_error}")
+            cprint(f"[!] Backup API also failed: {backup_error}", "red")
             raise SubdomainEnumerationError("All subdomain enumeration methods failed.")
 
-    # ────────── Save Results ──────────
+    # ──── Save Results ────
     if subdomains:
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        with open(output_file, 'w', encoding='utf-8') as f:
-            for sub in sorted(subdomains):
-                f.write(sub + '\n')
-        print(f"[✓] Found {len(subdomains)} subdomains. Saved to {output_file}")
+        try:
+            if output_format == "json":
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(sorted(list(subdomains)), f, indent=2)
+            else:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    for sub in sorted(subdomains):
+                        f.write(sub + '\n')
+            cprint(f"[✓] Saved {len(subdomains)} subdomains to {output_file}", "green")
+        except Exception as write_error:
+            cprint(f"[!] Failed to write output: {write_error}", "red")
     else:
-        print("[!] No subdomains found.")
+        cprint("[!] No subdomains found.", "yellow")

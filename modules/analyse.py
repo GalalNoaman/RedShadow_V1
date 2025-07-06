@@ -8,11 +8,12 @@ import json
 import os
 import re
 from termcolor import cprint
+from packaging import version
 from modules.utils import load_config
 
 # Load config
-config = load_config()
-cve_path = config.get("analyse", {}).get("cve_source", "data/cve_map.json")
+config = load_config(section="analyse")
+cve_path = config.get("cve_source", "data/cve_map.json")
 
 def load_cve_map(path=cve_path):
     try:
@@ -22,6 +23,67 @@ def load_cve_map(path=cve_path):
         print(f"[!] Failed to load CVE map: {e}")
         return {}
 
+def version_in_range(v, range_string):
+    try:
+        if not v or v.lower() == "n/a":
+            return False
+
+        if range_string.strip().lower() == "x":
+            return True
+
+        if v.strip().lower() == "x":
+            return "x" in range_string.lower()
+
+        v_parsed = version.parse(v)
+
+        for r in range_string.split(","):
+            r = r.strip()
+            if r.startswith("<="):
+                if v_parsed <= version.parse(r[2:].strip()):
+                    return True
+            elif r.startswith("<"):
+                if v_parsed < version.parse(r[1:].strip()):
+                    return True
+            elif r.startswith(">="):
+                if v_parsed >= version.parse(r[2:].strip()):
+                    return True
+            elif r.startswith(">"):
+                if v_parsed > version.parse(r[1:].strip()):
+                    return True
+            elif "-" in r:
+                low, high = r.split("-")
+                if version.parse(low.strip()) <= v_parsed <= version.parse(high.strip()):
+                    return True
+            elif "x" in r:
+                prefix = r.replace(".x", ".")
+                if v.startswith(prefix):
+                    return True
+            else:
+                if v_parsed == version.parse(r.strip()):
+                    return True
+    except Exception:
+        return False
+    return False
+
+def normalize_product_name(product):
+    if not product:
+        return ""
+    product = product.strip().lower()
+    product = product.replace("httpd", "").replace("-", " ").replace("_", " ").strip()
+
+    mappings = {
+        "nginx": "nginx",
+        "cloudfront": "cloudfront",
+        "amazon cloudfront httpd": "cloudfront",
+        "microsoft iis httpd": "microsoft iis",
+        "iis": "microsoft iis",
+        "cloudinary": "cloudinary",
+        "akamaighost": "akamai ghost",
+        "akamai ghost": "akamai ghost",
+        "envoy": "envoy"
+    }
+    return mappings.get(product, product)
+
 def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"):
     if not os.path.exists(input_file):
         print(f"[!] Input file not found: {input_file}")
@@ -29,7 +91,8 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
 
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            raw = json.load(f)
+            data = raw.get("results", raw)
     except json.JSONDecodeError as error:
         print(f"[!] Failed to parse input JSON: {error}")
         return
@@ -41,21 +104,45 @@ def analyse_scan_results(input_file, output_file="outputs/analysis_results.json"
     analysed = []
 
     for domain, info in data.items():
-        tech_matches = []
+        if not isinstance(info, dict):
+            continue
 
-        for proto, ports in info.get("protocols", {}).items():
+        tech_matches = []
+        protocols = info.get("protocols", {})
+        if not isinstance(protocols, dict):
+            continue
+
+        for proto, ports in protocols.items():
+            if not isinstance(ports, dict):
+                continue
+
             for port, port_data in ports.items():
+                if not isinstance(port_data, dict):
+                    continue
+
                 service = port_data.get("service", "")
                 product = port_data.get("product", "")
-                name = f"{product} {service}".strip().lower()
+                detected_version = port_data.get("version", "")
+                norm_name = normalize_product_name(product)
 
+                if not norm_name:
+                    continue
+
+                matched_cves = []
                 for tech_fp, cves in cve_map.items():
-                    if tech_fp.lower() in name:
-                        tech_matches.append({
-                            'tech': tech_fp,
-                            'port': port,
-                            'cves': cves
-                        })
+                    tech_fp_norm = tech_fp.lower().strip()
+                    if tech_fp_norm in norm_name or norm_name in tech_fp_norm:
+                        for cve in cves:
+                            affected_versions = cve.get("affected_versions", "")
+                            if version_in_range(detected_version, affected_versions):
+                                matched_cves.append(cve)
+
+                if matched_cves:
+                    tech_matches.append({
+                        'tech': norm_name,
+                        'port': port,
+                        'cves': matched_cves
+                    })
 
         if tech_matches:
             analysed.append({
