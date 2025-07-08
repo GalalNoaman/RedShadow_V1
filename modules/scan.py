@@ -1,16 +1,15 @@
 # Developed by Galal Noaman – RedShadow_V1
 # For educational and lawful use only.
-# Do not copy, redistribute, or resell without written permission.
 
-# RedShadow_v1/modules/scan.py
-
-import nmap
+import re
 import json
 import os
 import sys
 import socket
+import time
+import subprocess
 import dns.resolver
-import re
+import nmap
 from datetime import datetime
 from termcolor import cprint
 from multiprocessing.dummy import Pool as ThreadPool
@@ -31,11 +30,7 @@ except Exception as err:
     cprint(f"[!] Failed to load config: {err}", "red")
     sys.exit(1)
 
-# ─────────── DNS Resolver ───────────
-resolver = dns.resolver.Resolver()
-resolver.nameservers = dns_servers
-resolver.timeout = 3
-resolver.lifetime = 5
+fallback_dns = ["8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"]
 
 # ─────────── Validation ───────────
 def is_valid_target(target):
@@ -44,16 +39,57 @@ def is_valid_target(target):
         re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target)
     )
 
-def resolve_domain(domain):
-    if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", domain):
-        return domain, domain
+def resolve_domain(domain, log_file="outputs/scan_dns_failures.txt", dns_servers=None):
+    reasons = []
+
+    if dns_servers is None:
+        dns_servers = fallback_dns
+
     try:
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = dns_servers
+        resolver.timeout = 3
+        resolver.lifetime = 5
         answer = resolver.resolve(domain, 'A')
         return domain, answer[0].to_text()
     except Exception as e:
-        with open("outputs/scan_dns_failures.txt", "a", encoding="utf-8") as log:
-            log.write(f"{domain} - DNS resolution failed: {e}\n")
-        return domain, None
+        reasons.append(f"A record failed: {e}")
+
+    try:
+        cname = resolver.resolve(domain, 'CNAME')
+        cname_target = str(cname[0].target)
+        answer = resolver.resolve(cname_target, 'A')
+        return domain, answer[0].to_text()
+    except Exception as e:
+        reasons.append(f"CNAME fallback failed: {e}")
+
+    try:
+        answer = resolver.resolve(domain, 'AAAA')
+        return domain, answer[0].to_text()
+    except Exception as e:
+        reasons.append(f"AAAA (IPv6) fallback failed: {e}")
+
+    try:
+        dig_result = subprocess.check_output(["dig", "+short", domain], stderr=subprocess.DEVNULL).decode().strip()
+        if dig_result:
+            first_ip = dig_result.split("\n")[0]
+            return domain, first_ip
+    except Exception as e:
+        reasons.append(f"dig fallback failed: {e}")
+
+    try:
+        ip = socket.gethostbyname(domain)
+        return domain, ip
+    except Exception as e:
+        reasons.append(f"socket fallback failed: {e}")
+
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    with open(log_file, "a", encoding="utf-8") as log:
+        log.write(f"{domain} - DNS resolution failed:\n")
+        for r in reasons:
+            log.write(f"    {r}\n")
+
+    return domain, None
 
 # ─────────── Nmap Scan ───────────
 def scan_target(args):
@@ -81,7 +117,7 @@ def scan_target(args):
                     'state': state,
                     'service': port_data.get('name', ''),
                     'product': port_data.get('product', ''),
-                    'version': port_data.get('version', '') or 'x',  # <<< fallback here
+                    'version': port_data.get('version', '') or 'x',
                     'extrainfo': port_data.get('extrainfo', '')
                 }
             if proto_ports:
@@ -121,14 +157,22 @@ def run_scan(input_file, output_file):
     if os.path.exists("outputs/scan_dns_failures.txt"):
         os.remove("outputs/scan_dns_failures.txt")
 
+    def retry_domain(domain, attempts=3):
+        for _ in range(attempts):
+            d, ip = resolve_domain(domain)
+            if ip:
+                return d, ip
+        return domain, None
+
     with ThreadPool(max_threads) as pool:
-        resolved = pool.map(resolve_domain, filtered_targets)
+        resolved = pool.map(retry_domain, filtered_targets)
 
     failed = [d for d, ip in resolved if not ip]
     targets = [(d, ip) for d, ip in resolved if ip]
 
     if failed:
         cprint(f"[!] {len(failed)} domain(s) failed DNS resolution (see outputs/scan_dns_failures.txt)", "yellow")
+
     if not targets:
         cprint("[!] No live targets to scan.", "red")
         return
