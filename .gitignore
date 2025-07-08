@@ -21,6 +21,3 @@ __pycache__/
 # Ignore Jupyter checkpoints if any
 .ipynb_checkpoints/
 
-# Ignore system-wide config
-config.yaml
-*.db
